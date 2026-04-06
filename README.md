@@ -12,11 +12,11 @@ Human-in-the-loop task manager. Sends tasks to a browser dashboard where a human
 
 ### notify_macos_mcp
 
-Sends macOS notifications via `terminal-notifier`.
+Sends macOS notifications via `terminal-notifier`. Automatically finds the binary in PATH or rbenv gems.
 
 **Tools:** `notify`
 
-**Prerequisite:** `brew install terminal-notifier`
+**Prerequisite:** `brew install terminal-notifier` or `gem install terminal-notifier`
 
 ## Setup
 

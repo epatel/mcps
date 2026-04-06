@@ -1,12 +1,13 @@
 """MCP JSON-RPC protocol handler for Notify macOS MCP."""
 
 import json
+import os
 import subprocess
 
 TOOL_DEFINITIONS = [
     {
         "name": "notify",
-        "description": "Post a macOS notification via terminal-notifier.",
+        "description": "Post a macOS notification.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -37,9 +38,23 @@ TOOL_DEFINITIONS = [
 ]
 
 
+def _find_terminal_notifier() -> str:
+    """Find terminal-notifier, checking PATH and common locations."""
+    import shutil
+    path = shutil.which("terminal-notifier")
+    if path:
+        return path
+    import glob
+    candidates = glob.glob(os.path.expanduser("~/.rbenv/versions/*/bin/terminal-notifier"))
+    if candidates:
+        return candidates[-1]
+    raise FileNotFoundError("terminal-notifier not found. Install with: brew install terminal-notifier")
+
+
 def _send_notification(title: str, message: str, subtitle: str | None = None, sound: str | None = None) -> None:
-    """Call terminal-notifier to post a macOS notification."""
-    args = ["terminal-notifier", "-title", title, "-message", message]
+    """Post a macOS notification via terminal-notifier."""
+    binary = _find_terminal_notifier()
+    args = [binary, "-title", title, "-message", message]
     if subtitle:
         args.extend(["-subtitle", subtitle])
     args.extend(["-sound", sound or "default"])
