@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InLoop - Agent Tasks</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid #2a2a4a;
+  }
+
+  .header-title {
+    color: #7c3aed;
+    font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .header-status {
+    font-size: 12px;
+    color: #666;
+  }
+
+  .progress {
+    background: #22c55e33;
+    color: #22c55e;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+
+  .page-waiting, .page-done {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    gap: 16px;
+  }
+
+  .page-waiting .icon {
+    font-size: 32px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .page-waiting .text {
+    color: #888;
+    font-size: 14px;
+  }
+
+  .page-done .icon {
+    font-size: 48px;
+    color: #22c55e;
+  }
+
+  .page-done .text {
+    color: #22c55e;
+    font-size: 16px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .task-list {
+    padding: 16px 24px;
+  }
+
+  .task {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    margin-bottom: 4px;
+    border-left: 2px solid transparent;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+
+  .task-pending {
+    border-left-color: #333;
+    color: #555;
+  }
+
+  .task-enabled {
+    border-left-color: #7c3aed;
+    background: #7c3aed11;
+    color: #e0e0e0;
+  }
+
+  .task-done {
+    border-left-color: #22c55e;
+    color: #555;
+  }
+
+  .task-done .task-title {
+    text-decoration: line-through;
+  }
+
+  .task-indicator {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    font-size: 13px;
+  }
+
+  .task-pending .task-indicator { color: #444; }
+  .task-enabled .task-indicator { color: #7c3aed; }
+  .task-done .task-indicator { color: #22c55e; }
+
+  .task-title {
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  .task-title p { margin: 0; }
+  .task-title code {
+    background: #2a2a4a;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 13px;
+  }
+  .task-title strong { color: #c0c0ff; }
+  .task-title a { color: #7c3aed; }
+
+  .task-btn {
+    flex-shrink: 0;
+    background: #7c3aed;
+    color: white;
+    border: none;
+    padding: 4px 14px;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: background 0.15s;
+  }
+
+  .task-btn:hover { background: #6d28d9; }
+  .task-btn:active { background: #5b21b6; }
+
+  .connection-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  .connected { background: #22c55e; }
+  .disconnected { background: #ef4444; animation: pulse 1s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span id="header-title" class="header-title">INLOOP AGENT TASKS</span>
+  <span id="header-right" class="header-status">
+    <span id="conn-dot" class="connection-dot disconnected"></span>
+    <span id="conn-text">connecting...</span>
+  </span>
+</div>
+
+<div id="content"></div>
+
+<script>
+const content = document.getElementById('content');
+const connDot = document.getElementById('conn-dot');
+const connText = document.getElementById('conn-text');
+const headerRight = document.getElementById('header-right');
+const headerTitle = document.getElementById('header-title');
+
+let ws = null;
+let reconnectTimer = null;
+
+function connect() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+  ws.onopen = () => {
+    connDot.className = 'connection-dot connected';
+    connText.textContent = 'connected';
+  };
+
+  ws.onclose = () => {
+    connDot.className = 'connection-dot disconnected';
+    connText.textContent = 'reconnecting...';
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'state') {
+      if (data.title) {
+        headerTitle.textContent = data.title;
+        document.title = `InLoop - ${data.title}`;
+      } else {
+        headerTitle.textContent = 'INLOOP AGENT TASKS';
+        document.title = 'InLoop - Agent Tasks';
+      }
+      render(data);
+    }
+  };
+}
+
+function render(state) {
+  if (state.page === 'waiting') {
+    content.innerHTML = `
+      <div class="page-waiting">
+        <div class="icon">&#9679;</div>
+        <div class="text">Agent is working... stand by</div>
+      </div>`;
+    headerRight.innerHTML = `
+      <span id="conn-dot" class="connection-dot connected"></span>
+      <span>waiting</span>`;
+    return;
+  }
+
+  if (state.page === 'done') {
+    content.innerHTML = `
+      <div class="page-done">
+        <div class="icon">&#10003;</div>
+        <div class="text">All tasks complete</div>
+      </div>`;
+    headerRight.innerHTML = `
+      <span class="progress">${state.tasks.length}/${state.tasks.length} done</span>`;
+    return;
+  }
+
+  const doneCount = state.tasks.filter(t => t.status === 'done').length;
+  const total = state.tasks.length;
+
+  headerRight.innerHTML = `
+    <span class="progress">${doneCount}/${total} done</span>`;
+
+  const tasksHtml = state.tasks.map(task => {
+    const cls = `task task-${task.status}`;
+    let indicator = '';
+    if (task.status === 'done') indicator = '&#10003;';
+    else if (task.status === 'enabled') indicator = '&#9654;';
+    else indicator = '&#9679;';
+
+    const titleHtml = DOMPurify.sanitize(marked.parse(task.title));
+    const safeId = task.id.replace(/[^a-zA-Z0-9_-]/g, '');
+    const btn = task.status === 'enabled'
+      ? `<button class="task-btn" data-task-id="${safeId}" onclick="markDone(this.dataset.taskId)">DONE</button>`
+      : '';
+
+    return `<div class="${cls}">
+      <div class="task-indicator">${indicator}</div>
+      <div class="task-title">${titleHtml}</div>
+      ${btn}
+    </div>`;
+  }).join('');
+
+  content.innerHTML = `<div class="task-list">${tasksHtml}</div>`;
+}
+
+function markDone(taskId) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'task_done', task_id: taskId }));
+  }
+}
+
+connect();
+</script>
+</body>
+</html>

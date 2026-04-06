@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "inloop": {
+      "command": "bash",
+      "args": ["run.sh"],
+      "cwd": "/path/to/inloop_user_mcp"
+    }
+  }
+}
