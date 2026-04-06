@@ -2,7 +2,7 @@
   "mcpServers": {
     "inloop": {
       "command": "bash",
-      "args": ["run.sh"],
+      "args": ["/path/to/inloop_user_mcp/run.sh"],
       "cwd": "/path/to/inloop_user_mcp"
     }
   }

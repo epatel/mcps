@@ -2,7 +2,7 @@
   "mcpServers": {
     "notify-macos": {
       "command": "bash",
-      "args": ["run.sh"],
+      "args": ["/path/to/notify_macos_mcp/run.sh"],
       "cwd": "/path/to/notify_macos_mcp"
     }
   }
